@@ -40,4 +40,6 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV NODE_ENV=production
 
+EXPOSE $PORT
+
 CMD ["node", "index.js"]
