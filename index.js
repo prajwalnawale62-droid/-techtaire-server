@@ -16,12 +16,8 @@ app.get('/', (req, res) => {
 });
 
 app.get('/qr', async (req, res) => {
-  if (isReady) {
-    return res.json({ status: 'connected' });
-  }
-  if (qrCodeData) {
-    return res.json({ status: 'pending', qr: qrCodeData });
-  }
+  if (isReady) return res.json({ status: 'connected' });
+  if (qrCodeData) return res.json({ status: 'pending', qr: qrCodeData });
   res.json({ status: 'initializing' });
 });
 
@@ -30,9 +26,7 @@ app.get('/status', (req, res) => {
 });
 
 app.post('/send', async (req, res) => {
-  if (!isReady) {
-    return res.status(400).json({ error: 'WhatsApp not connected' });
-  }
+  if (!isReady) return res.status(400).json({ error: 'WhatsApp not connected' });
   const { phone, message } = req.body;
   try {
     const number = phone.replace(/\D/g, '');
@@ -45,7 +39,21 @@ app.post('/send', async (req, res) => {
 });
 
 function startClient() {
-  client = new Client({ authStrategy: new LocalAuth() });
+  client = new Client({
+    authStrategy: new LocalAuth(),
+    puppeteer: {
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process',
+        '--disable-gpu'
+      ],
+    }
+  });
 
   client.on('qr', async (qr) => {
     isReady = false;
