@@ -36,14 +36,14 @@ app.get('/', (req, res) => {
           : qrCodeData
             ? `<div class="status pending">📱 Scan QR Code with WhatsApp</div>
                <br><img src="${qrCodeData}" width="280" height="280" />`
-            : `<div class="status init">⏳ Initializing... Please wait (page auto-refreshes)</div>`
+            : `<div class="status init">⏳ Initializing... Please wait</div>`
         }
       </body>
     </html>
   `);
 });
 
-// QR ROUTE (API ke liye bhi rakha)
+// QR ROUTE
 app.get('/qr', async (req, res) => {
   if (isReady) return res.json({ status: 'connected' });
   if (qrCodeData) return res.json({ status: 'pending', qr: qrCodeData });
@@ -55,26 +55,86 @@ app.get('/status', (req, res) => {
   res.json({ connected: isReady });
 });
 
-// SEND MESSAGE
+// SINGLE MESSAGE SEND
 app.post('/send', async (req, res) => {
   if (!isReady) {
     return res.status(400).json({ error: 'WhatsApp not connected' });
   }
+
   const { phone, message } = req.body;
+
   try {
     const number = phone.replace(/\D/g, '');
     const chatId = number + '@c.us';
+
     await client.sendMessage(chatId, message);
+
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+// BULK MESSAGE SEND
+app.post('/bulk-send', async (req, res) => {
+
+  if (!isReady) {
+    return res.status(400).json({ error: 'WhatsApp not connected' });
+  }
+
+  const { phones, message } = req.body;
+
+  if (!phones || !Array.isArray(phones)) {
+    return res.status(400).json({ error: 'Phones array required' });
+  }
+
+  let sent = 0;
+
+  for (let i = 0; i < phones.length; i++) {
+
+    try {
+
+      const number = phones[i].replace(/\D/g, '');
+      const chatId = number + '@c.us';
+
+      await client.sendMessage(chatId, message);
+
+      sent++;
+
+      console.log(`Sent ${sent}/${phones.length}`);
+
+      // 20 messages ke baad pause
+      if (sent % 20 === 0) {
+
+        const delay = Math.floor(Math.random() * 30000) + 30000;
+
+        console.log(`Waiting ${delay / 1000} seconds...`);
+
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+
+    } catch (err) {
+
+      console.log("Error sending:", err.message);
+
+    }
+  }
+
+  res.json({
+    success: true,
+    total: phones.length,
+    sent: sent
+  });
+
+});
+
 // START WHATSAPP CLIENT
 function startClient() {
+
   client = new Client({
-    authStrategy: new NoAuth(),  // ✅ Railway ke liye NoAuth (LocalAuth filesystem chahta hai)
+
+    authStrategy: new NoAuth(),
+
     puppeteer: {
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
       args: [
@@ -91,37 +151,59 @@ function startClient() {
   });
 
   client.on('qr', async (qr) => {
+
     isReady = false;
+
     qrCodeData = await qrcode.toDataURL(qr);
-    console.log('✅ QR Code generated — open browser to scan');
+
+    console.log('QR Code generated');
+
   });
 
   client.on('ready', () => {
+
     isReady = true;
+
     qrCodeData = null;
-    console.log('✅ WhatsApp Connected!');
+
+    console.log('WhatsApp Connected');
+
   });
 
   client.on('auth_failure', () => {
-    console.log('❌ Auth failed. Restarting...');
+
+    console.log('Auth failed restarting');
+
     isReady = false;
+
     qrCodeData = null;
+
     setTimeout(startClient, 5000);
+
   });
 
   client.on('disconnected', () => {
+
     isReady = false;
+
     qrCodeData = null;
-    console.log('❌ WhatsApp Disconnected. Restarting in 5s...');
+
+    console.log('Disconnected restarting');
+
     setTimeout(startClient, 5000);
+
   });
 
   client.initialize();
+
 }
 
 startClient();
 
 const PORT = process.env.PORT || 3000;
+
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+
+  console.log(`Server running on port ${PORT}`);
+
 });
