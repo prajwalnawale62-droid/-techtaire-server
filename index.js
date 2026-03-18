@@ -7,7 +7,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Store per-user clients
+// Multi-user clients store
 const clients = {};
 
 function getOrCreateClient(userId) {
@@ -69,21 +69,18 @@ function getOrCreateClient(userId) {
   return clientData;
 }
 
-// ROOT
+// ROOT ROUTE
 app.get('/', (req, res) => {
-  const userList = Object.keys(clients).map(uid => ({
-    userId: uid,
-    connected: clients[uid].isReady
-  }));
   res.send(`
     <!DOCTYPE html>
     <html>
       <head>
         <title>Techtaire WhatsApp Server</title>
+        <meta http-equiv="refresh" content="5">
         <style>
           body { font-family: Arial, sans-serif; text-align: center; padding: 40px; background: #f0f0f0; }
           h1 { color: #25D366; }
-          .status { font-size: 18px; margin: 10px; padding: 10px 20px; border-radius: 8px; display: inline-block; background: #25D366; color: white; }
+          .status { font-size: 18px; margin: 20px; padding: 10px 20px; border-radius: 8px; display: inline-block; background: #25D366; color: white; }
         </style>
       </head>
       <body>
@@ -106,7 +103,7 @@ app.get('/qr', async (req, res) => {
 });
 
 // STATUS ROUTE
-app.get('/status', async (req, res) => {
+app.get('/status', (req, res) => {
   const userId = req.query.userId || req.query.email || 'default';
 
   if (!clients[userId]) {
@@ -116,7 +113,7 @@ app.get('/status', async (req, res) => {
   res.json({ connected: clients[userId].isReady });
 });
 
-// SEND MESSAGE
+// SINGLE MESSAGE SEND
 app.post('/send', async (req, res) => {
   const { phone, message, userId, email } = req.body;
   const uid = userId || email || 'default';
@@ -135,6 +132,48 @@ app.post('/send', async (req, res) => {
   }
 });
 
+// BULK MESSAGE SEND
+app.post('/bulk-send', async (req, res) => {
+  const { phones, message, userId, email } = req.body;
+  const uid = userId || email || 'default';
+
+  if (!clients[uid] || !clients[uid].isReady) {
+    return res.status(400).json({ error: 'WhatsApp not connected for this user' });
+  }
+
+  if (!phones || !Array.isArray(phones)) {
+    return res.status(400).json({ error: 'Phones array required' });
+  }
+
+  let sent = 0;
+
+  for (let i = 0; i < phones.length; i++) {
+    try {
+      const number = phones[i].replace(/\D/g, '');
+      const chatId = number + '@c.us';
+      await clients[uid].client.sendMessage(chatId, message);
+      sent++;
+      console.log(`[${uid}] Sent ${sent}/${phones.length}`);
+
+      // Har 20 messages ke baad pause
+      if (sent % 20 === 0) {
+        const delay = Math.floor(Math.random() * 30000) + 30000;
+        console.log(`[${uid}] Waiting ${delay / 1000} seconds...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+
+    } catch (err) {
+      console.log(`[${uid}] Error:`, err.message);
+    }
+  }
+
+  res.json({
+    success: true,
+    total: phones.length,
+    sent: sent
+  });
+});
+
 // DISCONNECT
 app.post('/disconnect', async (req, res) => {
   const { userId, email } = req.body;
@@ -149,7 +188,7 @@ app.post('/disconnect', async (req, res) => {
   res.json({ success: true });
 });
 
-// ACTIVE USERS LIST (Admin ke liye)
+// ACTIVE USERS LIST
 app.get('/users', (req, res) => {
   const userList = Object.keys(clients).map(uid => ({
     userId: uid,
@@ -162,31 +201,3 @@ const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
-```
-
----
-
-**GitHub par kaise update karo:**
-
-1. GitHub → `techtaire-server` repo kholo
-2. `index.js` file click karo
-3. **Edit (pencil) button** click karo
-4. Pura purana code delete karo
-5. Upar wala naya code paste karo
-6. **Commit changes** click karo
-
-Railway auto-deploy karega! ✅
-
----
-
-**Phir Google AI Studio mein yeh prompt do** frontend update ke liye:
-```
-Update all WhatsApp server API calls to include user email:
-
-1. /qr calls — add ?email=${user.email} as query param
-2. /status calls — add ?email=${user.email} as query param  
-3. /send calls — add email: user.email in request body
-
-Server URL is: https://techtaire-server-production-ad0b.up.railway.app
-
-This ensures each user has their own WhatsApp session.
