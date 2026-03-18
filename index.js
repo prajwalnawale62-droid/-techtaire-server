@@ -1,5 +1,5 @@
 const express = require('express');
-const { Client, LocalAuth } = require('whatsapp-web.js');
+const { Client, NoAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
 const cors = require('cors');
 
@@ -31,7 +31,7 @@ app.get('/', (req, res) => {
       <body>
         <h1>Techtaire WhatsApp Server</h1>
         ${isReady
-          ? `<div class="status connected">✅ WhatsApp Connected!</div>`
+          ? `<div class="status connected">WhatsApp Connected!</div>`
           : qrCodeData
             ? `<div class="status pending">Scan QR Code with WhatsApp</div>
                <br><img src="${qrCodeData}" width="280" height="280" />`
@@ -89,7 +89,7 @@ app.post('/bulk-send', async (req, res) => {
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     } catch (err) {
-      console.log('Error sending:', err.message);
+      console.log("Error sending:", err.message);
     }
   }
   res.json({ success: true, total: phones.length, sent: sent });
@@ -97,7 +97,7 @@ app.post('/bulk-send', async (req, res) => {
 
 function startClient() {
   client = new Client({
-    authStrategy: new LocalAuth(),
+    authStrategy: new NoAuth(),
     puppeteer: {
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
       args: [
@@ -116,26 +116,26 @@ function startClient() {
   client.on('qr', async (qr) => {
     isReady = false;
     qrCodeData = await qrcode.toDataURL(qr);
-    console.log('QR Code generated ✅');
+    console.log('QR Code generated');
   });
 
   client.on('ready', () => {
     isReady = true;
     qrCodeData = null;
-    console.log('WhatsApp Connected! ✅');
+    console.log('WhatsApp Connected!');
   });
 
   client.on('auth_failure', () => {
     isReady = false;
     qrCodeData = null;
-    console.log('Auth failed, restarting...');
+    console.log('Auth failed restarting');
     setTimeout(startClient, 5000);
   });
 
   client.on('disconnected', () => {
     isReady = false;
     qrCodeData = null;
-    console.log('Disconnected, restarting...');
+    console.log('Disconnected restarting');
     setTimeout(startClient, 5000);
   });
 
