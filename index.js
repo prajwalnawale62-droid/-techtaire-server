@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const qrcode = require('qrcode');
-const { default: makeWASocket, DisconnectReason, useMultiFileAuthState } = require('baileys');
+const { default: makeWASocket, DisconnectReason, useMultiFileAuthState } = require('@whiskeysockets/baileys');
 const { Boom } = require('@hapi/boom');
 
 const app = express();
