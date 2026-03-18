@@ -6,7 +6,7 @@
   "engines": { "node": "18.x" },
   "dependencies": {
     "express": "4.18.2",
-    "baileys": "latest",
+    "@whiskeysockets/baileys": "6.7.0",
     "@hapi/boom": "10.0.1",
     "qrcode": "1.5.3",
     "cors": "2.8.5"
