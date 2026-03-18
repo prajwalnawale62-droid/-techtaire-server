@@ -89,7 +89,7 @@ app.post('/bulk-send', async (req, res) => {
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     } catch (err) {
-      console.log("Error sending:", err.message);
+      console.log('Error sending:', err.message);
     }
   }
   res.json({ success: true, total: phones.length, sent: sent });
