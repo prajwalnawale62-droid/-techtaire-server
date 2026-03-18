@@ -29,13 +29,13 @@ app.get('/', (req, res) => {
         </style>
       </head>
       <body>
-        <h1>🚀 Techtaire WhatsApp Server</h1>
+        <h1>Techtaire WhatsApp Server</h1>
         ${isReady
-          ? `<div class="status connected">✅ WhatsApp Connected!</div>`
+          ? `<div class="status connected">WhatsApp Connected!</div>`
           : qrCodeData
-            ? `<div class="status pending">📱 Scan QR Code with WhatsApp</div>
+            ? `<div class="status pending">Scan QR Code with WhatsApp</div>
                <br><img src="${qrCodeData}" width="280" height="280" />`
-            : `<div class="status init">⏳ Initializing... Please wait</div>`
+            : `<div class="status init">Initializing... Please wait</div>`
         }
       </body>
     </html>
@@ -116,26 +116,26 @@ function startClient() {
   client.on('qr', async (qr) => {
     isReady = false;
     qrCodeData = await qrcode.toDataURL(qr);
-    console.log('✅ QR Code generated');
+    console.log('QR Code generated');
   });
 
   client.on('ready', () => {
     isReady = true;
     qrCodeData = null;
-    console.log('✅ WhatsApp Connected!');
+    console.log('WhatsApp Connected!');
   });
 
   client.on('auth_failure', () => {
-    console.log('❌ Auth failed restarting');
     isReady = false;
     qrCodeData = null;
+    console.log('Auth failed restarting');
     setTimeout(startClient, 5000);
   });
 
   client.on('disconnected', () => {
     isReady = false;
     qrCodeData = null;
-    console.log('❌ Disconnected restarting');
+    console.log('Disconnected restarting');
     setTimeout(startClient, 5000);
   });
 
@@ -146,12 +146,5 @@ startClient();
 
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
-```
-
-**GitHub par paste karo → Commit karo → Railway deploy karega!**
-
-Phir browser mein:
-```
-https://techtaire-server-production.up.railway.app
