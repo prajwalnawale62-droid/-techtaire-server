@@ -1,7 +1,7 @@
-const express = require('express');
-const { Client, LocalAuth } = require('whatsapp-web.js');
-const qrcode = require('qrcode');
-const cors = require('cors');
+const express = require("express");
+const { Client, LocalAuth } = require("whatsapp-web.js");
+const qrcode = require("qrcode");
+const cors = require("cors");
 
 const app = express();
 app.use(cors());
@@ -15,109 +15,222 @@ function startClient() {
 
 client = new Client({
 authStrategy: new LocalAuth({
-clientId: "techtaire-session"
+clientId: "techtaire"
 }),
 puppeteer: {
-executablePath: process.env.CHROME_BIN || '/usr/bin/chromium',
+executablePath: process.env.CHROME_BIN || "/usr/bin/chromium",
 args: [
-'--no-sandbox',
-'--disable-setuid-sandbox',
-'--disable-dev-shm-usage',
-'--disable-gpu'
+"--no-sandbox",
+"--disable-setuid-sandbox",
+"--disable-dev-shm-usage",
+"--disable-gpu"
 ]
 }
 });
 
-client.on('qr', async (qr) => {
-isReady = false;
+client.on("qr", async qr => {
+
+console.log("QR GENERATED");
+
 qrCodeData = await qrcode.toDataURL(qr);
-console.log("QR RECEIVED");
+isReady = false;
+
 });
 
-client.on('authenticated', () => {
-console.log("Authenticated");
-});
+client.on("ready", () => {
 
-client.on('ready', () => {
-console.log("WhatsApp READY");
+console.log("WHATSAPP READY");
+
 isReady = true;
 qrCodeData = null;
+
 });
 
-client.on('change_state', state => {
-console.log("STATE:", state);
-
-if(state === "UNPAIRED" || state === "CONFLICT"){
-isReady = false;
-}
+client.on("authenticated", () => {
+console.log("AUTHENTICATED");
 });
 
-client.on('disconnected', reason => {
-console.log("Disconnected:", reason);
+client.on("auth_failure", msg => {
+
+console.log("AUTH FAILURE", msg);
 
 isReady = false;
 qrCodeData = null;
 
-setTimeout(() => {
-startClient();
-},5000);
+restartClient();
+
+});
+
+client.on("disconnected", reason => {
+
+console.log("DISCONNECTED:", reason);
+
+isReady = false;
+qrCodeData = null;
+
+restartClient();
+
 });
 
 client.initialize();
 }
 
+function restartClient() {
+
+try{
+client.destroy();
+}catch(e){}
+
+setTimeout(()=>{
 startClient();
+},5000);
 
-app.get('/qr',(req,res)=>{
-if(isReady) return res.json({status:"connected"});
-if(qrCodeData) return res.json({status:"pending",qr:qrCodeData});
-res.json({status:"initializing"});
-});
-
-app.get('/status',(req,res)=>{
-res.json({connected:isReady});
-});
-
-app.post('/send', async(req,res)=>{
-
-if(!isReady){
-return res.status(400).json({error:"WhatsApp not connected"});
 }
 
-const {phone,message} = req.body;
+startClient();
+
+
+// FORCE CONNECTION CHECK
+setInterval(async () => {
 
 try{
 
-const number = phone.replace(/\D/g,'');
+if(!client) return;
+
+const state = await client.getState();
+
+if(state !== "CONNECTED"){
+
+console.log("FORCE DETECT LOGOUT:", state);
+
+isReady = false;
+qrCodeData = null;
+
+restartClient();
+
+}
+
+}catch(err){
+
+console.log("STATE CHECK ERROR");
+
+}
+
+},10000);
+
+
+
+app.get("/",(req,res)=>{
+res.send("WhatsApp Server Running");
+});
+
+
+app.get("/qr",(req,res)=>{
+
+if(isReady){
+
+return res.json({
+status:"connected"
+});
+
+}
+
+if(qrCodeData){
+
+return res.json({
+status:"pending",
+qr:qrCodeData
+});
+
+}
+
+res.json({
+status:"initializing"
+});
+
+});
+
+
+app.get("/status",async(req,res)=>{
+
+try{
+
+if(!client){
+
+return res.json({connected:false});
+}
+
+const state = await client.getState();
+
+res.json({
+connected: state === "CONNECTED",
+state
+});
+
+}catch{
+
+res.json({
+connected:false
+});
+
+}
+
+});
+
+
+app.post("/send", async (req,res)=>{
+
+if(!isReady){
+
+return res.status(400).json({
+error:"WhatsApp not connected"
+});
+
+}
+
+const { phone , message } = req.body;
+
+try{
+
+const number = phone.replace(/\D/g,"");
 const chatId = number + "@c.us";
 
 await client.sendMessage(chatId,message);
 
-res.json({success:true});
+res.json({
+success:true
+});
 
 }catch(err){
 
-res.status(500).json({error:err.message});
+res.status(500).json({
+error:err.message
+});
 
 }
 
 });
 
-app.post('/bulk-send', async(req,res)=>{
+
+app.post("/bulk-send", async (req,res)=>{
 
 if(!isReady){
-return res.status(400).json({error:"WhatsApp not connected"});
+
+return res.status(400).json({
+error:"WhatsApp not connected"
+});
+
 }
 
-const {phones,message} = req.body;
+const { phones , message } = req.body;
 
 let sent = 0;
 
-for(let i=0;i<phones.length;i++){
+for(const p of phones){
 
 try{
 
-const number = phones[i].replace(/\D/g,'');
+const number = p.replace(/\D/g,"");
 const chatId = number + "@c.us";
 
 await client.sendMessage(chatId,message);
@@ -126,9 +239,9 @@ sent++;
 
 await new Promise(r=>setTimeout(r,3000));
 
-}catch(err){
+}catch(e){
 
-console.log(err.message);
+console.log(e.message);
 
 }
 
@@ -142,8 +255,9 @@ sent
 
 });
 
+
 const PORT = process.env.PORT || 8080;
 
 app.listen(PORT,()=>{
-console.log("Server running on",PORT);
+console.log("Server running",PORT);
 });
