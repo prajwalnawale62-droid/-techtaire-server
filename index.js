@@ -92,14 +92,16 @@ function startClient() {
   client = new Client({
     authStrategy: new NoAuth(),
     puppeteer: {
-      executablePath: '/usr/bin/chromium',
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
         '--no-zygote',
-        '--single-process'
+        '--single-process',
+        '--disable-extensions',
+        '--no-first-run'
       ]
     }
   });
