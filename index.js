@@ -64,7 +64,10 @@ app.post('/bulk-send', async (req, res) => {
   if (!isReady) return res.status(400).json({ error: 'WhatsApp not connected' });
   const { phones, message } = req.body;
   if (!phones || !Array.isArray(phones)) return res.status(400).json({ error: 'Phones array required' });
+
   let sent = 0;
+  const batchSize = 20;
+
   for (let i = 0; i < phones.length; i++) {
     try {
       const number = phones[i].replace(/\D/g, '');
@@ -72,23 +75,34 @@ app.post('/bulk-send', async (req, res) => {
       await client.sendMessage(chatId, message);
       sent++;
       console.log(`Sent ${sent}/${phones.length}`);
-      if (sent % 20 === 0) {
-        const delay = Math.floor(Math.random() * 30000) + 30000;
-        console.log(`Waiting ${delay / 1000} seconds...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
+
+      if (sent % batchSize === 0) {
+        const delay = Math.floor(Math.random() * 5000) + 10000;
+        console.log(`Batch complete! Waiting ${delay / 1000} seconds...`);
+        await new Promise(r => setTimeout(r, delay));
       }
+
     } catch (err) {
       console.log('Error sending:', err.message);
     }
   }
+
   res.json({ success: true, total: phones.length, sent });
 });
 
 function startClient() {
   client = new Client({
     authStrategy: new NoAuth(),
+    webVersion: '2.2412.54',
+    webVersionCache: {
+      type: 'remote',
+      remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html'
+    },
     puppeteer: {
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
+      handleSIGINT: false,
+      handleSIGTERM: false,
+      handleSIGHUP: false,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -112,7 +126,7 @@ function startClient() {
         '--ignore-certificate-errors-spki-list'
       ],
       ignoreHTTPSErrors: true,
-      timeout: 60000
+      timeout: 120000
     }
   });
 
@@ -120,6 +134,10 @@ function startClient() {
     isReady = false;
     qrCodeData = await qrcode.toDataURL(qr);
     console.log('QR Code generated');
+  });
+
+  client.on('loading_screen', (percent, message) => {
+    console.log('Loading:', percent, message);
   });
 
   client.on('ready', () => {
