@@ -3,6 +3,8 @@ const { Client, NoAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
 const cors = require('cors');
 
+process.setMaxListeners(0);
+
 const app = express();
 app.use(cors({
   origin: '*',
@@ -92,17 +94,16 @@ function startClient() {
   client = new Client({
     authStrategy: new NoAuth(),
     puppeteer: {
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
+      executablePath: '/usr/bin/chromium',
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
         '--no-zygote',
-        '--single-process',
-        '--disable-extensions',
-        '--no-first-run'
-      ]
+        '--single-process'
+      ],
+      timeout: 120000
     }
   });
 
@@ -140,6 +141,7 @@ function startClient() {
     setTimeout(startClient, 5000);
   });
 
+  process.setMaxListeners(0);
   client.initialize();
 }
 
