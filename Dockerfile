@@ -1,4 +1,4 @@
-FROM node:18-bullseye-slim
+FROM node:18-slim
 RUN apt-get update && apt-get install -y \
     chromium \
     libglib2.0-0 \
@@ -13,6 +13,18 @@ RUN apt-get update && apt-get install -y \
     libxrandr2 \
     libgbm1 \
     libasound2 \
+    libx11-6 \
+    libx11-xcb1 \
+    libxcb1 \
+    libxext6 \
+    libxfixes3 \
+    libxi6 \
+    libxrender1 \
+    libxss1 \
+    libxtst6 \
+    ca-certificates \
+    fonts-liberation \
+    wget \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
