@@ -2,6 +2,7 @@ FROM node:18-slim
 
 RUN apt-get update && apt-get install -y \
 chromium \
+libxshmfence1 \
 libglib2.0-0 \
 libnss3 \
 libatk1.0-0 \
