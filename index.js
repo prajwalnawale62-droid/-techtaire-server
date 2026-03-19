@@ -81,12 +81,10 @@ app.post('/bulk-send', async (req, res) => {
         console.log(`Batch complete! Waiting ${delay / 1000} seconds...`);
         await new Promise(r => setTimeout(r, delay));
       }
-
     } catch (err) {
       console.log('Error sending:', err.message);
     }
   }
-
   res.json({ success: true, total: phones.length, sent });
 });
 
