@@ -11,10 +11,85 @@ app.use(cors({
 }));
 app.use(express.json());
 
-const users = {};
+let client;
+let qrCodeData = null;
+let isReady = false;
 
-function createClient(userId) {
-  const client = new Client({
+app.get('/', (req, res) => {
+  res.send(`<!DOCTYPE html><html><head><title>Techtaire WhatsApp Server</title>
+    <meta http-equiv="refresh" content="5">
+    <style>
+      body{font-family:Arial;text-align:center;padding:40px;background:#f0f0f0;}
+      h1{color:#25D366;}
+      img{margin-top:20px;border:3px solid #25D366;border-radius:12px;}
+      .status{font-size:18px;margin:20px;padding:10px 20px;border-radius:8px;display:inline-block;}
+      .connected{background:#25D366;color:white;}
+      .pending{background:#FFA500;color:white;}
+      .init{background:#999;color:white;}
+    </style></head><body>
+    <h1>Techtaire WhatsApp Server</h1>
+    ${isReady
+      ? `<div class="status connected">WhatsApp Connected!</div>`
+      : qrCodeData
+        ? `<div class="status pending">Scan QR Code with WhatsApp</div><br><img src="${qrCodeData}" width="280" height="280"/>`
+        : `<div class="status init">Initializing... Please wait</div>`
+    }
+    </body></html>`);
+});
+
+app.get('/qr', async (req, res) => {
+  if (isReady) return res.json({ status: 'connected' });
+  if (qrCodeData) return res.json({ status: 'pending', qr: qrCodeData });
+  res.json({ status: 'initializing' });
+});
+
+app.get('/status', (req, res) => {
+  res.json({ connected: isReady });
+});
+
+app.post('/send', async (req, res) => {
+  if (!isReady) return res.status(400).json({ error: 'WhatsApp not connected' });
+  const { phone, message } = req.body;
+  try {
+    const number = phone.replace(/\D/g, '');
+    const chatId = number + '@c.us';
+    await client.sendMessage(chatId, message);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/bulk-send', async (req, res) => {
+  if (!isReady) return res.status(400).json({ error: 'WhatsApp not connected' });
+  const { phones, message } = req.body;
+  if (!phones || !Array.isArray(phones)) return res.status(400).json({ error: 'Phones array required' });
+
+  let sent = 0;
+  const batchSize = 20;
+
+  for (let i = 0; i < phones.length; i++) {
+    try {
+      const number = phones[i].replace(/\D/g, '');
+      const chatId = number + '@c.us';
+      await client.sendMessage(chatId, message);
+      sent++;
+      console.log(`Sent ${sent}/${phones.length}`);
+
+      if (sent % batchSize === 0) {
+        const delay = Math.floor(Math.random() * 5000) + 10000;
+        console.log(`Batch complete! Waiting ${delay / 1000} seconds...`);
+        await new Promise(r => setTimeout(r, delay));
+      }
+    } catch (err) {
+      console.log('Error sending:', err.message);
+    }
+  }
+  res.json({ success: true, total: phones.length, sent });
+});
+
+function startClient() {
+  client = new Client({
     authStrategy: new NoAuth(),
     puppeteer: {
       executablePath: '/usr/bin/chromium',
@@ -29,133 +104,36 @@ function createClient(userId) {
     }
   });
 
-  users[userId] = {
-    client,
-    qrCodeData: null,
-    isReady: false
-  };
-
   client.on('qr', async (qr) => {
-    users[userId].qrCodeData = await qrcode.toDataURL(qr);
-    users[userId].isReady = false;
-    console.log(`QR generated for user: ${userId}`);
+    isReady = false;
+    qrCodeData = await qrcode.toDataURL(qr);
+    console.log('QR Code generated');
   });
 
   client.on('ready', () => {
-    users[userId].isReady = true;
-    users[userId].qrCodeData = null;
-    console.log(`Connected: ${userId}`);
+    isReady = true;
+    qrCodeData = null;
+    console.log('WhatsApp Connected!');
   });
 
   client.on('auth_failure', () => {
-    users[userId].isReady = false;
-    users[userId].qrCodeData = null;
-    console.log(`Auth failed: ${userId}`);
-    setTimeout(() => createClient(userId), 5000);
+    isReady = false;
+    qrCodeData = null;
+    console.log('Auth failed restarting');
+    setTimeout(startClient, 5000);
   });
 
   client.on('disconnected', () => {
-    users[userId].isReady = false;
-    users[userId].qrCodeData = null;
-    console.log(`Disconnected: ${userId}`);
-    setTimeout(() => createClient(userId), 5000);
+    isReady = false;
+    qrCodeData = null;
+    console.log('Disconnected restarting');
+    setTimeout(startClient, 5000);
   });
 
   client.initialize();
 }
 
-createClient('user1');
-createClient('user2');
-createClient('user3');
-
-app.get('/status', (req, res) => {
-  const { userId } = req.query;
-  if (!userId || !users[userId]) return res.status(400).json({ error: 'Invalid userId' });
-  res.json({ connected: users[userId].isReady });
-});
-
-app.get('/qr', async (req, res) => {
-  const { userId } = req.query;
-  if (!userId || !users[userId]) return res.status(400).json({ error: 'Invalid userId' });
-  const user = users[userId];
-  if (user.isReady) return res.json({ status: 'connected' });
-  if (user.qrCodeData) return res.json({ status: 'pending', qr: user.qrCodeData });
-  res.json({ status: 'initializing' });
-});
-
-app.post('/send', async (req, res) => {
-  const { userId, phone, message } = req.body;
-  if (!userId || !users[userId]) return res.status(400).json({ error: 'Invalid userId' });
-  if (!users[userId].isReady) return res.status(400).json({ error: 'WhatsApp not connected' });
-  try {
-    const number = phone.replace(/\D/g, '');
-    const chatId = number + '@c.us';
-    await users[userId].client.sendMessage(chatId, message);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/bulk-send', async (req, res) => {
-  const { userId, phones, message } = req.body;
-  if (!userId || !users[userId]) return res.status(400).json({ error: 'Invalid userId' });
-  if (!users[userId].isReady) return res.status(400).json({ error: 'WhatsApp not connected' });
-  if (!phones || !Array.isArray(phones)) return res.status(400).json({ error: 'Phones array required' });
-
-  let sent = 0;
-  const batchSize = 20;
-
-  for (let i = 0; i < phones.length; i++) {
-    try {
-      const number = phones[i].replace(/\D/g, '');
-      const chatId = number + '@c.us';
-      await users[userId].client.sendMessage(chatId, message);
-      sent++;
-      console.log(`User ${userId} sent ${sent}/${phones.length}`);
-
-      if (sent % batchSize === 0) {
-        const delay = Math.floor(Math.random() * 5000) + 10000;
-        console.log(`Waiting ${delay / 1000} seconds...`);
-        await new Promise(r => setTimeout(r, delay));
-      }
-    } catch (err) {
-      console.log('Error:', err.message);
-    }
-  }
-  res.json({ success: true, total: phones.length, sent });
-});
-
-app.get('/', (req, res) => {
-  const userCards = ['user1', 'user2', 'user3'].map(uid => {
-    const u = users[uid];
-    return `
-      <div style="border:2px solid #25D366;border-radius:12px;padding:20px;margin:10px;">
-        <h2>${uid}</h2>
-        ${u.isReady
-          ? `<div class="status connected">Connected</div>`
-          : u.qrCodeData
-            ? `<div class="status pending">Scan QR</div><br><img src="${u.qrCodeData}" width="200"/>`
-            : `<div class="status init">Initializing...</div>`
-        }
-      </div>`;
-  }).join('');
-
-  res.send(`<!DOCTYPE html><html><head><title>Techtaire WA Server</title>
-    <meta http-equiv="refresh" content="5">
-    <style>
-      body{font-family:Arial;text-align:center;padding:40px;background:#f0f0f0;}
-      h1{color:#25D366;}
-      .status{font-size:16px;margin:10px;padding:8px 16px;border-radius:8px;display:inline-block;}
-      .connected{background:#25D366;color:white;}
-      .pending{background:#FFA500;color:white;}
-      .init{background:#999;color:white;}
-      .grid{display:flex;justify-content:center;flex-wrap:wrap;}
-    </style></head><body>
-    <h1>Techtaire WhatsApp Server</h1>
-    <div class="grid">${userCards}</div>
-    </body></html>`);
-});
+startClient();
 
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
