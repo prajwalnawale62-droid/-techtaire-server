@@ -1,5 +1,5 @@
 const express = require('express');
-const { Client, LocalAuth } = require('whatsapp-web.js');
+const { Client, NoAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
 const cors = require('cors');
 
@@ -90,7 +90,7 @@ app.post('/bulk-send', async (req, res) => {
 
 function startClient() {
   client = new Client({
-    authStrategy: new LocalAuth(),
+    authStrategy: new NoAuth(),
     puppeteer: {
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
       args: [
@@ -110,6 +110,10 @@ function startClient() {
     isReady = false;
     qrCodeData = await qrcode.toDataURL(qr);
     console.log('QR Code generated');
+  });
+
+  client.on('authenticated', () => {
+    console.log('Authenticated!');
   });
 
   client.on('loading_screen', (percent, message) => {
