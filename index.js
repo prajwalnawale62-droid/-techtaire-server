@@ -11,7 +11,6 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// 3 users ka data
 const users = {};
 
 function createClient(userId) {
@@ -51,33 +50,30 @@ function createClient(userId) {
   client.on('auth_failure', () => {
     users[userId].isReady = false;
     users[userId].qrCodeData = null;
-    console.log(`Auth failed: ${userId} — restarting`);
+    console.log(`Auth failed: ${userId}`);
     setTimeout(() => createClient(userId), 5000);
   });
 
   client.on('disconnected', () => {
     users[userId].isReady = false;
     users[userId].qrCodeData = null;
-    console.log(`Disconnected: ${userId} — restarting`);
+    console.log(`Disconnected: ${userId}`);
     setTimeout(() => createClient(userId), 5000);
   });
 
   client.initialize();
 }
 
-// 3 users start karo
 createClient('user1');
 createClient('user2');
 createClient('user3');
 
-// Status check
 app.get('/status', (req, res) => {
   const { userId } = req.query;
   if (!userId || !users[userId]) return res.status(400).json({ error: 'Invalid userId' });
   res.json({ connected: users[userId].isReady });
 });
 
-// QR fetch
 app.get('/qr', async (req, res) => {
   const { userId } = req.query;
   if (!userId || !users[userId]) return res.status(400).json({ error: 'Invalid userId' });
@@ -87,7 +83,6 @@ app.get('/qr', async (req, res) => {
   res.json({ status: 'initializing' });
 });
 
-// Single send
 app.post('/send', async (req, res) => {
   const { userId, phone, message } = req.body;
   if (!userId || !users[userId]) return res.status(400).json({ error: 'Invalid userId' });
@@ -102,7 +97,6 @@ app.post('/send', async (req, res) => {
   }
 });
 
-// Bulk send
 app.post('/bulk-send', async (req, res) => {
   const { userId, phones, message } = req.body;
   if (!userId || !users[userId]) return res.status(400).json({ error: 'Invalid userId' });
@@ -132,7 +126,6 @@ app.post('/bulk-send', async (req, res) => {
   res.json({ success: true, total: phones.length, sent });
 });
 
-// Dashboard
 app.get('/', (req, res) => {
   const userCards = ['user1', 'user2', 'user3'].map(uid => {
     const u = users[uid];
@@ -140,7 +133,7 @@ app.get('/', (req, res) => {
       <div style="border:2px solid #25D366;border-radius:12px;padding:20px;margin:10px;">
         <h2>${uid}</h2>
         ${u.isReady
-          ? `<div class="status connected">✅ Connected</div>`
+          ? `<div class="status connected">Connected</div>`
           : u.qrCodeData
             ? `<div class="status pending">Scan QR</div><br><img src="${u.qrCodeData}" width="200"/>`
             : `<div class="status init">Initializing...</div>`
@@ -168,8 +161,3 @@ const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-
-GET /status?userId=user1
-GET /qr?userId=user1
-POST /send → { userId: "user1", phone: "...", message: "..." }
-POST /bulk-send → { userId: "user1", phones: [...], message: "..." }
