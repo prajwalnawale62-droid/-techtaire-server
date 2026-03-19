@@ -168,12 +168,7 @@ const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-```
 
----
-
-**API calls mein ab `userId` bhejna hoga:**
-```
 GET /status?userId=user1
 GET /qr?userId=user1
 POST /send → { userId: "user1", phone: "...", message: "..." }
