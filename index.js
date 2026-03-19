@@ -14,27 +14,43 @@ let isReady = false;
 function startClient() {
 
 client = new Client({
+
 authStrategy: new LocalAuth({
-clientId: "techtaire"
+clientId: "techtaire-session"
 }),
+
 puppeteer: {
+headless: true,
 executablePath: process.env.CHROME_BIN || "/usr/bin/chromium",
+
 args: [
 "--no-sandbox",
 "--disable-setuid-sandbox",
 "--disable-dev-shm-usage",
-"--disable-gpu"
-]
+"--disable-accelerated-2d-canvas",
+"--no-first-run",
+"--no-zygote",
+"--disable-gpu",
+"--single-process"
+],
+
+timeout: 120000
+
 }
+
 });
 
-client.on("qr", async qr => {
+client.on("qr", async (qr) => {
 
 console.log("QR GENERATED");
 
 qrCodeData = await qrcode.toDataURL(qr);
 isReady = false;
 
+});
+
+client.on("authenticated", () => {
+console.log("AUTHENTICATED");
 });
 
 client.on("ready", () => {
@@ -46,27 +62,17 @@ qrCodeData = null;
 
 });
 
-client.on("authenticated", () => {
-console.log("AUTHENTICATED");
-});
+client.on("auth_failure", () => {
 
-client.on("auth_failure", msg => {
-
-console.log("AUTH FAILURE", msg);
-
-isReady = false;
-qrCodeData = null;
+console.log("AUTH FAILURE");
 
 restartClient();
 
 });
 
-client.on("disconnected", reason => {
+client.on("disconnected", (reason) => {
 
 console.log("DISCONNECTED:", reason);
-
-isReady = false;
-qrCodeData = null;
 
 restartClient();
 
@@ -75,7 +81,10 @@ restartClient();
 client.initialize();
 }
 
-function restartClient() {
+function restartClient(){
+
+isReady = false;
+qrCodeData = null;
 
 try{
 client.destroy();
@@ -90,8 +99,9 @@ startClient();
 startClient();
 
 
-// FORCE CONNECTION CHECK
-setInterval(async () => {
+/* FORCE STATE CHECK */
+
+setInterval(async ()=>{
 
 try{
 
@@ -101,27 +111,24 @@ const state = await client.getState();
 
 if(state !== "CONNECTED"){
 
-console.log("FORCE DETECT LOGOUT:", state);
-
-isReady = false;
-qrCodeData = null;
+console.log("FORCE DETECT LOGOUT:",state);
 
 restartClient();
 
 }
 
-}catch(err){
+}catch(e){
 
 console.log("STATE CHECK ERROR");
 
 }
 
-},10000);
+},15000);
 
 
 
 app.get("/",(req,res)=>{
-res.send("WhatsApp Server Running");
+res.send("Techtaire WhatsApp Server Running");
 });
 
 
@@ -157,7 +164,10 @@ try{
 
 if(!client){
 
-return res.json({connected:false});
+return res.json({
+connected:false
+});
+
 }
 
 const state = await client.getState();
@@ -178,7 +188,7 @@ connected:false
 });
 
 
-app.post("/send", async (req,res)=>{
+app.post("/send", async(req,res)=>{
 
 if(!isReady){
 
@@ -193,6 +203,7 @@ const { phone , message } = req.body;
 try{
 
 const number = phone.replace(/\D/g,"");
+
 const chatId = number + "@c.us";
 
 await client.sendMessage(chatId,message);
@@ -212,7 +223,7 @@ error:err.message
 });
 
 
-app.post("/bulk-send", async (req,res)=>{
+app.post("/bulk-send", async(req,res)=>{
 
 if(!isReady){
 
@@ -259,5 +270,7 @@ sent
 const PORT = process.env.PORT || 8080;
 
 app.listen(PORT,()=>{
+
 console.log("Server running",PORT);
+
 });
